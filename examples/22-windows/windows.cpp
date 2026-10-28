@@ -81,7 +81,7 @@ public:
 		m_width  = _width;
 		m_height = _height;
 		m_debug  = BGFX_DEBUG_TEXT;
-		m_reset  = BGFX_RESET_VSYNC;
+		m_reset  = BGFX_RESET_VSYNC | BGFX_RESET_EXTERNAL_FRAME_WAIT;
 
 		bgfx::Init init;
 		init.type     = args.m_type;
@@ -96,6 +96,11 @@ public:
 
 		const bgfx::Caps* caps = bgfx::getCaps();
 		bool swapChainSupported = 0 != (caps->supported & BGFX_CAPS_SWAP_CHAIN);
+
+		if (0 == (caps->supported & BGFX_CAPS_EXTERNAL_FRAME_WAIT) )
+		{
+			m_reset &= ~BGFX_RESET_EXTERNAL_FRAME_WAIT;
+		}
 
 		if (swapChainSupported)
 		{
@@ -248,6 +253,26 @@ public:
 
 			showExampleDialog(this);
 
+			if (0 != (bgfx::getCaps()->supported & BGFX_CAPS_EXTERNAL_FRAME_WAIT) )
+			{
+				ImGui::SetNextWindowPos(
+					  ImVec2(m_width - m_width / 5.0f - 10.0f, 10.0f)
+					, ImGuiCond_FirstUseEver
+					);
+				ImGui::Begin("Settings"
+					, NULL
+					, ImGuiWindowFlags_AlwaysAutoResize
+					);
+
+				bool externalFrameWait = 0 != (m_reset & BGFX_RESET_EXTERNAL_FRAME_WAIT);
+				if (ImGui::Checkbox("External frame wait", &externalFrameWait) )
+				{
+					m_reset ^= BGFX_RESET_EXTERNAL_FRAME_WAIT;
+				}
+
+				ImGui::End();
+			}
+
 			imguiEndFrame();
 
 			const bx::Vec3 at  = { 0.0f, 0.0f,   0.0f };
@@ -326,6 +351,19 @@ public:
 					// Submit primitive for rendering.
 					bgfx::submit(count%MAX_WINDOWS, m_program);
 					++count;
+				}
+			}
+
+			if (0 != (m_reset & BGFX_RESET_EXTERNAL_FRAME_WAIT) )
+			{
+				bgfx::waitForFrame(BGFX_INVALID_HANDLE, 100);
+
+				for (uint32_t ii = 0; ii < MAX_WINDOWS; ++ii)
+				{
+					if (bgfx::isValid(m_fbh[ii]) )
+					{
+						bgfx::waitForFrame(m_fbh[ii], 100);
+					}
 				}
 			}
 

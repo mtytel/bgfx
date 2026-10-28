@@ -3193,6 +3193,11 @@ VK_IMPORT_DEVICE
 			}
 		}
 
+		bool waitForFrame(FrameBufferHandle /*_handle*/, uint32_t /*_timeoutMs*/) override
+		{
+			return true;
+		}
+
 		void requestScreenShot(FrameBufferHandle _fbh, const char* _filePath) override
 		{
 			FrameBufferVK& frameBuffer = getFrameBuffer(_fbh);

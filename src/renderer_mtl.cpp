@@ -1819,6 +1819,11 @@ static_assert(BX_COUNTOF(s_accessNames) == Access::Count, "Invalid s_accessNames
 			}
 		}
 
+		bool waitForFrame(FrameBufferHandle /*_handle*/, uint32_t /*_timeoutMs*/) override
+		{
+			return true;
+		}
+
 		FrameBufferMtl& getFrameBuffer(FrameBufferHandle _fbh)
 		{
 			return isValid(_fbh)
