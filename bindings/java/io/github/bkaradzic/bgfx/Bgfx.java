@@ -229,6 +229,8 @@ public final class Bgfx {
 		"bgfx_get_texture", FunctionDescriptor.of(TextureHandle.LAYOUT, FrameBufferHandle.LAYOUT, ValueLayout.JAVA_BYTE));
 	static final MethodHandle MH_DESTROY_FRAME_BUFFER = downcall(
 		"bgfx_destroy_frame_buffer", FunctionDescriptor.ofVoid(FrameBufferHandle.LAYOUT));
+	static final MethodHandle MH_WAIT_FOR_FRAME = downcall(
+		"bgfx_wait_for_frame", FunctionDescriptor.of(ValueLayout.JAVA_BOOLEAN, FrameBufferHandle.LAYOUT, ValueLayout.JAVA_INT));
 	static final MethodHandle MH_CREATE_UNIFORM = downcall(
 		"bgfx_create_uniform", FunctionDescriptor.of(UniformHandle.LAYOUT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_SHORT));
 	static final MethodHandle MH_CREATE_UNIFORM_WITH_FREQ = downcall(
@@ -1906,6 +1908,26 @@ public final class Bgfx {
 		try {
 			try (Arena arena = Arena.ofConfined()) {
 				MH_DESTROY_FRAME_BUFFER.invokeExact(_handle.allocate(arena));
+			}
+		} catch (Throwable ex) {
+			throw invocationFailure(ex);
+		}
+	}
+
+	/**
+	 * Block until a window's swap chain can accept a new frame.
+	 * <p>
+	 * <strong>Remarks:</strong>
+	 *   Use with {@code BGFX_RESET_EXTERNAL_FRAME_WAIT}. Each successful wait covers one present.
+	 *   Can be called from any thread, but not while the frame buffer is being destroyed or recreated.
+	 * @param _handle Window frame buffer handle, or {@code BGFX_INVALID_HANDLE} for the main window.
+	 * @param _timeoutMs Timeout in milliseconds.
+	 * @return True when the swap chain is ready, false on timeout. Always true when {@code BGFX_CAPS_EXTERNAL_FRAME_WAIT} isn't available.
+	 */
+	public static boolean waitForFrame(FrameBufferHandle _handle, @Unsigned int _timeoutMs) {
+		try {
+			try (Arena arena = Arena.ofConfined()) {
+				return (boolean) MH_WAIT_FOR_FRAME.invokeExact(_handle.allocate(arena), _timeoutMs);
 			}
 		} catch (Throwable ex) {
 			throw invocationFailure(ex);
@@ -4667,6 +4689,12 @@ public final class Bgfx {
 		public static final int Capture = 0x00000200;
 
 		/**
+		 * Don't block on swap chain frame pacing inside {@code frame}, pace with {@code waitForFrame} instead.
+		 * Must be set in {@code Init.reset} to apply to the main window. Availability depends on: {@code BGFX_CAPS_EXTERNAL_FRAME_WAIT}.
+		 */
+		public static final int ExternalFrameWait = 0x00001000;
+
+		/**
 		 * Flush rendering after submitting to GPU.
 		 */
 		public static final int FlushAfterRender = 0x00002000;
@@ -4867,99 +4895,104 @@ public final class Bgfx {
 		public static final long DrawIndirectCount = 0x0000000000000010L;
 
 		/**
+		 * {@code waitForFrame} waits on swap chain frame pacing.
+		 */
+		public static final long ExternalFrameWait = 0x0000000000000020L;
+
+		/**
 		 * Fragment ordering is available in fragment shader.
 		 */
-		public static final long FragmentOrdering = 0x0000000000000020L;
+		public static final long FragmentOrdering = 0x0000000000000040L;
 
 		/**
 		 * Graphics debugger is present.
 		 */
-		public static final long GraphicsDebugger = 0x0000000000000040L;
+		public static final long GraphicsDebugger = 0x0000000000000080L;
 
 		/**
 		 * HDR10 rendering is supported.
 		 */
-		public static final long Hdr10 = 0x0000000000000080L;
+		public static final long Hdr10 = 0x0000000000000100L;
 
 		/**
 		 * Image Read/Write is supported.
 		 */
-		public static final long ImageRw = 0x0000000000000100L;
+		public static final long ImageRw = 0x0000000000000200L;
 
 		/**
 		 * 32-bit indices are supported.
 		 */
-		public static final long Index32 = 0x0000000000000200L;
+		public static final long Index32 = 0x0000000000000400L;
 
 		/**
 		 * Low latency mode (NVIDIA Reflex) is supported.
 		 */
-		public static final long LowLatency = 0x0000000000000400L;
+		public static final long LowLatency = 0x0000000000000800L;
 
 		/**
 		 * PrimitiveID is available in fragment shader.
 		 */
-		public static final long PrimitiveId = 0x0000000000000800L;
+		public static final long PrimitiveId = 0x0000000000001000L;
 
 		/**
 		 * Renderer is on separate thread.
 		 */
-		public static final long RendererMultithreaded = 0x0000000000001000L;
+		public static final long RendererMultithreaded = 0x0000000000002000L;
 
 		/**
 		 * 16-bit floats are supported in shaders.
 		 */
-		public static final long ShaderF16 = 0x0000000000002000L;
+		public static final long ShaderF16 = 0x0000000000004000L;
 
 		/**
 		 * Multiple windows are supported.
 		 */
-		public static final long SwapChain = 0x0000000000004000L;
+		public static final long SwapChain = 0x0000000000008000L;
 
 		/**
 		 * Cubemap texture array is supported.
 		 */
-		public static final long TextureCubeArray = 0x0000000000008000L;
+		public static final long TextureCubeArray = 0x0000000000010000L;
 
 		/**
 		 * CPU direct access to GPU texture memory.
 		 */
-		public static final long TextureDirectAccess = 0x0000000000010000L;
+		public static final long TextureDirectAccess = 0x0000000000020000L;
 
 		/**
 		 * External texture is supported.
 		 */
-		public static final long TextureExternal = 0x0000000000020000L;
+		public static final long TextureExternal = 0x0000000000040000L;
 
 		/**
 		 * External shared texture is supported.
 		 */
-		public static final long TextureExternalShared = 0x0000000000040000L;
+		public static final long TextureExternalShared = 0x0000000000080000L;
 
 		/**
 		 * Transparent back buffer supported.
 		 */
-		public static final long TransparentBackbuffer = 0x0000000000080000L;
+		public static final long TransparentBackbuffer = 0x0000000000100000L;
 
 		/**
 		 * Variable Rate Shading
 		 */
-		public static final long VariableRateShading = 0x0000000000100000L;
+		public static final long VariableRateShading = 0x0000000000200000L;
 
 		/**
 		 * Vertex attribute 10_10_10_2 is supported.
 		 */
-		public static final long VertexAttribUint10 = 0x0000000000200000L;
+		public static final long VertexAttribUint10 = 0x0000000000400000L;
 
 		/**
 		 * Hardware video decode is supported.
 		 */
-		public static final long VideoDecode = 0x0000000000400000L;
+		public static final long VideoDecode = 0x0000000000800000L;
 
 		/**
 		 * Viewport layer is available in vertex shader.
 		 */
-		public static final long ViewportLayerArray = 0x0000000000800000L;
+		public static final long ViewportLayerArray = 0x0000000001000000L;
 	}
 
 	/**

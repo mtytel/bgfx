@@ -3421,6 +3421,12 @@ namespace bgfx
 			return load(_idx / BlockT)[_idx & kBlockMask];
 		}
 
+		BX_FORCE_INLINE Ty* tryGet(uint16_t _idx)
+		{
+			Ty* block = load(_idx / BlockT);
+			return NULL != block ? &block[_idx & kBlockMask] : NULL;
+		}
+
 		void freeUnused()
 		{
 			for (uint32_t ii = 0; ii < kNumBlocks; ++ii)
@@ -3496,6 +3502,11 @@ namespace bgfx
 		BX_FORCE_INLINE const Ty& operator[](uint16_t _idx) const
 		{
 			return m_data[_idx];
+		}
+
+		BX_FORCE_INLINE Ty* tryGet(uint16_t _idx)
+		{
+			return &m_data[_idx];
 		}
 
 		template<typename Fn>
@@ -5990,6 +6001,7 @@ namespace bgfx
 		}
 
 		virtual void destroyFrameBuffer(FrameBufferHandle _handle) = 0;
+		virtual bool waitForFrame(FrameBufferHandle _handle, uint32_t _timeoutMs) = 0;
 		virtual void requestScreenShot(FrameBufferHandle _handle, const char* _filePath) = 0;
 		virtual void invalidateOcclusionQuery(OcclusionQueryHandle _handle) = 0;
 		virtual void setMarker(const char* _name, uint16_t _len) = 0;
@@ -8409,6 +8421,16 @@ namespace bgfx
 					}
 				}
 			}
+		}
+
+		bool waitForFrame(FrameBufferHandle _handle, uint32_t _timeoutMs)
+		{
+			{
+				BGFX_MUTEX_SCOPE(m_resourceApiLock);
+				BGFX_CHECK_HANDLE_INVALID_OK("waitForFrame", m_frameBufferHandle, _handle);
+			}
+
+			return m_renderCtx->waitForFrame(_handle, _timeoutMs);
 		}
 
 		BGFX_API_FUNC(UniformHandle createUniform(const char* _name, UniformFreq::Enum _freq, UniformType::Enum _type, uint16_t _num) )

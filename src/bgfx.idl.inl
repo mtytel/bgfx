@@ -637,6 +637,12 @@ BGFX_C_API void bgfx_destroy_frame_buffer(bgfx_frame_buffer_handle_t _handle)
 	bgfx::destroy(handle.cpp);
 }
 
+BGFX_C_API bool bgfx_wait_for_frame(bgfx_frame_buffer_handle_t _handle, uint32_t _timeoutMs)
+{
+	union { bgfx_frame_buffer_handle_t c; bgfx::FrameBufferHandle cpp; } handle = { _handle };
+	return bgfx::waitForFrame(handle.cpp, _timeoutMs);
+}
+
 BGFX_C_API bgfx_uniform_handle_t bgfx_create_uniform(const char* _name, bgfx_uniform_type_t _type, uint16_t _num)
 {
 	union { bgfx_uniform_handle_t c; bgfx::UniformHandle cpp; } handle_ret;
@@ -1570,6 +1576,7 @@ BGFX_C_API bgfx_interface_vtbl_t* bgfx_get_interface(uint32_t _version)
 			bgfx_set_frame_buffer_name,
 			bgfx_get_texture,
 			bgfx_destroy_frame_buffer,
+			bgfx_wait_for_frame,
 			bgfx_create_uniform,
 			bgfx_create_uniform_with_freq,
 			bgfx_get_uniform_info,

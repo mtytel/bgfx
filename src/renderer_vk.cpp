@@ -136,15 +136,17 @@ namespace bgfx { namespace vk
 	{
 		VkPresentModeKHR mode;
 		bool             vsync;
+		bool             replacesQueued;
 		const char*      name;
 	};
 
 	static const PresentMode s_presentMode[] =
 	{
-		{ VK_PRESENT_MODE_FIFO_KHR,         true,  "VK_PRESENT_MODE_FIFO_KHR"         },
-		{ VK_PRESENT_MODE_FIFO_RELAXED_KHR, true,  "VK_PRESENT_MODE_FIFO_RELAXED_KHR" },
-		{ VK_PRESENT_MODE_MAILBOX_KHR,      true,  "VK_PRESENT_MODE_MAILBOX_KHR"      },
-		{ VK_PRESENT_MODE_IMMEDIATE_KHR,    false, "VK_PRESENT_MODE_IMMEDIATE_KHR"    },
+		{ VK_PRESENT_MODE_FIFO_KHR,              true,  false, "VK_PRESENT_MODE_FIFO_KHR"              },
+		{ VK_PRESENT_MODE_FIFO_RELAXED_KHR,      true,  false, "VK_PRESENT_MODE_FIFO_RELAXED_KHR"      },
+		{ VK_PRESENT_MODE_FIFO_LATEST_READY_KHR, true,  true,  "VK_PRESENT_MODE_FIFO_LATEST_READY_KHR" },
+		{ VK_PRESENT_MODE_MAILBOX_KHR,           true,  true,  "VK_PRESENT_MODE_MAILBOX_KHR"           },
+		{ VK_PRESENT_MODE_IMMEDIATE_KHR,         false, false, "VK_PRESENT_MODE_IMMEDIATE_KHR"         },
 	};
 
 	static const VkLatencyMarkerNV s_latencyMarker[] =
@@ -398,6 +400,7 @@ VK_IMPORT_DEVICE
 			KHR_get_physical_device_properties2,
 			KHR_get_surface_capabilities2,
 			KHR_present_id,
+			KHR_present_mode_fifo_latest_ready,
 			KHR_shader_float16_int8,
 			KHR_video_queue,
 			KHR_video_decode_queue,
@@ -451,6 +454,7 @@ VK_IMPORT_DEVICE
 		{ "VK_KHR_get_physical_device_properties2", 1, false, false, true,                                                          Layer::Count },
 		{ "VK_KHR_get_surface_capabilities2",       1, false, false, true,                                                          Layer::Count },
 		{ "VK_KHR_present_id",                      1, false, false, false,                                                         Layer::Count },
+		{ "VK_KHR_present_mode_fifo_latest_ready",  1, false, false, true,                                                          Layer::Count },
 		{ "VK_KHR_shader_float16_int8",             1, false, false, true,                                                          Layer::Count },
 		{ "VK_KHR_video_queue",                     1, false, false, true,                                                          Layer::Count },
 		{ "VK_KHR_video_decode_queue",              1, false, false, true,                                                          Layer::Count },
@@ -1377,6 +1381,8 @@ VK_IMPORT_DEVICE
 
 		bool init(const Init& _init)
 		{
+			m_reset = _init.reset & (~BGFX_RESET_INTERNAL_FORCE);
+
 			struct ErrorState
 			{
 				enum Enum
@@ -1402,6 +1408,7 @@ VK_IMPORT_DEVICE
 			VkPhysicalDeviceCustomBorderColorFeaturesEXT customBorderColorFeatures = {};
 			VkPhysicalDeviceFragmentShadingRateFeaturesKHR fragmentShadingRate = {};
 			VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT swapchainMaintenance1Features = {};
+			VkPhysicalDevicePresentModeFifoLatestReadyFeaturesKHR fifoLatestReadyFeatures = {};
 			VkPhysicalDeviceShaderFloat16Int8Features shaderFloat16Int8Features = {};
 			VkPhysicalDevice16BitStorageFeatures storage16BitFeatures = {};
 			VkPhysicalDeviceTimelineSemaphoreFeatures timelineSemaphoreFeatures = {};
@@ -1912,6 +1919,14 @@ VK_IMPORT_INSTANCE
 						swapchainMaintenance1Features.pNext = NULL;
 					}
 
+					if (s_extension[Extension::KHR_present_mode_fifo_latest_ready].m_supported)
+					{
+						next->pNext = (VkBaseOutStructure*)&fifoLatestReadyFeatures;
+						next = (VkBaseOutStructure*)&fifoLatestReadyFeatures;
+						fifoLatestReadyFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_KHR;
+						fifoLatestReadyFeatures.pNext = NULL;
+					}
+
 					next->pNext = (VkBaseOutStructure*)&storage16BitFeatures;
 					next = (VkBaseOutStructure*)&storage16BitFeatures;
 					storage16BitFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES;
@@ -2142,6 +2157,11 @@ VK_IMPORT_INSTANCE
 				m_swapchainMaintenance1Supported = true
 					&& s_extension[Extension::EXT_swapchain_maintenance1].m_supported
 					&& swapchainMaintenance1Features.swapchainMaintenance1
+					;
+
+				m_fifoLatestReadySupported = true
+					&& s_extension[Extension::KHR_present_mode_fifo_latest_ready].m_supported
+					&& fifoLatestReadyFeatures.presentModeFifoLatestReady
 					;
 
 				const bool indirectDrawSupport = true
@@ -3191,6 +3211,11 @@ VK_IMPORT_DEVICE
 
 				m_windows[m_numWindows] = {kInvalidHandle};
 			}
+		}
+
+		bool waitForFrame(FrameBufferHandle /*_handle*/, uint32_t /*_timeoutMs*/) override
+		{
+			return true;
 		}
 
 		void requestScreenShot(FrameBufferHandle _fbh, const char* _filePath) override
@@ -5998,6 +6023,7 @@ VK_IMPORT_DEVICE
 		bool m_borderColorSupport;
 		bool m_timerQuerySupport;
 		bool m_swapchainMaintenance1Supported = false;
+		bool m_fifoLatestReadySupported = false;
 		bool m_lost = false;
 
 		FrameBufferVK m_backBuffer;
@@ -10113,17 +10139,28 @@ VK_DESTROY
 
 		uint32_t idx = UINT32_MAX;
 
-		for (uint32_t ii = 0; ii < BX_COUNTOF(s_presentMode) && UINT32_MAX == idx; ++ii)
+		const bool externalFrameWait = 0 != (s_renderVK->m_reset & BGFX_RESET_EXTERNAL_FRAME_WAIT);
+
+		for (uint32_t pass = externalFrameWait ? 0 : 1; pass < 2 && UINT32_MAX == idx; ++pass)
 		{
-			for (uint32_t jj = 0; jj < numPresentModes; ++jj)
+			for (uint32_t ii = 0; ii < BX_COUNTOF(s_presentMode) && UINT32_MAX == idx; ++ii)
 			{
 				const PresentMode& pm = s_presentMode[ii];
 
-				if (pm.mode  == presentModes[jj]
-				&&  pm.vsync == _vsync)
+				if ( (0 == pass && !pm.replacesQueued)
+				||  (VK_PRESENT_MODE_FIFO_LATEST_READY_KHR == pm.mode && !s_renderVK->m_fifoLatestReadySupported) )
 				{
-					idx = ii;
-					break;
+					continue;
+				}
+
+				for (uint32_t jj = 0; jj < numPresentModes; ++jj)
+				{
+					if (pm.mode  == presentModes[jj]
+					&&  pm.vsync == _vsync)
+					{
+						idx = ii;
+						break;
+					}
 				}
 			}
 		}

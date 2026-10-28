@@ -552,6 +552,7 @@ namespace bgfx { namespace mtl
 		SwapChainMtl()
 			: m_metalLayer(NULL)
 			, m_drawable(NULL)
+			, m_waitedDrawable(NULL)
 			, m_drawableTexture(NULL)
 			, m_screenshotTarget(NULL)
 			, m_backBufferColorMsaa()
@@ -573,9 +574,12 @@ namespace bgfx { namespace mtl
 		uint32_t resize(const SwapChain& _desc);
 
 		MTL::Texture* currentDrawableTexture();
+		bool waitForFrame();
+		CA::MetalDrawable* takeWaitedDrawable();
 
 		CA::MetalLayer* m_metalLayer;
 		CA::MetalDrawable* m_drawable;
+		CA::MetalDrawable* m_waitedDrawable;
 
 		MTL::Texture* m_drawableTexture;
 		MTL::Texture* m_screenshotTarget;

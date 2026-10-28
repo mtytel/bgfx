@@ -3915,6 +3915,25 @@ namespace bgfx
 	///
 	void destroy(FrameBufferHandle _handle);
 
+	/// Block until a window's swap chain can accept a new frame.
+	///
+	/// @param[in] _handle Window frame buffer handle, or `BGFX_INVALID_HANDLE` for the main window.
+	/// @param[in] _timeoutMs Timeout in milliseconds.
+	///
+	/// @returns True when the swap chain is ready, false on timeout. Always true when
+	///   `BGFX_CAPS_EXTERNAL_FRAME_WAIT` isn't available.
+	///
+	/// @remarks
+	///   Use with `BGFX_RESET_EXTERNAL_FRAME_WAIT`. Each successful wait covers one present.
+	///   Can be called from any thread, but not while the frame buffer is being destroyed or recreated.
+	///
+	/// @attention C99's equivalent binding is `bgfx_wait_for_frame`.
+	///
+	bool waitForFrame(
+		  FrameBufferHandle _handle
+		, uint32_t _timeoutMs
+		);
+
 	/// Create shader uniform parameter.
 	///
 	/// @param[in] _name Uniform name in shader.

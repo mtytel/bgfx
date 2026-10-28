@@ -597,6 +597,10 @@ constdef ResetFlags : inline uint
 	// Begin screen capture.
 	CAPTURE                = 0x00000200,
 
+	// Don't block on swap chain frame pacing inside `bgfx::frame`, pace with `bgfx::waitForFrame` instead.
+	// Must be set in `Init::reset` to apply to the main window. Availability depends on: `BGFX_CAPS_EXTERNAL_FRAME_WAIT`.
+	EXTERNALFRAMEWAIT      = 0x00001000,
+
 	// Flush rendering after submitting to GPU.
 	FLUSHAFTERRENDER       = 0x00002000,
 
@@ -686,62 +690,65 @@ constdef CapsFlags : inline ulong
 	// Draw indirect with indirect count is supported.
 	DRAWINDIRECTCOUNT      = 0x0000000000000010,
 
+	// `bgfx::waitForFrame` waits on swap chain frame pacing.
+	EXTERNALFRAMEWAIT      = 0x0000000000000020,
+
 	// Fragment ordering is available in fragment shader.
-	FRAGMENTORDERING       = 0x0000000000000020,
+	FRAGMENTORDERING       = 0x0000000000000040,
 
 	// Graphics debugger is present.
-	GRAPHICSDEBUGGER       = 0x0000000000000040,
+	GRAPHICSDEBUGGER       = 0x0000000000000080,
 
 	// HDR10 rendering is supported.
-	HDR10                  = 0x0000000000000080,
+	HDR10                  = 0x0000000000000100,
 
 	// Image Read/Write is supported.
-	IMAGERW                = 0x0000000000000100,
+	IMAGERW                = 0x0000000000000200,
 
 	// 32-bit indices are supported.
-	INDEX32                = 0x0000000000000200,
+	INDEX32                = 0x0000000000000400,
 
 	// Low latency mode (NVIDIA Reflex) is supported.
-	LOWLATENCY             = 0x0000000000000400,
+	LOWLATENCY             = 0x0000000000000800,
 
 	// PrimitiveID is available in fragment shader.
-	PRIMITIVEID            = 0x0000000000000800,
+	PRIMITIVEID            = 0x0000000000001000,
 
 	// Renderer is on separate thread.
-	RENDERERMULTITHREADED  = 0x0000000000001000,
+	RENDERERMULTITHREADED  = 0x0000000000002000,
 
 	// 16-bit floats are supported in shaders.
-	SHADERF16              = 0x0000000000002000,
+	SHADERF16              = 0x0000000000004000,
 
 	// Multiple windows are supported.
-	SWAPCHAIN              = 0x0000000000004000,
+	SWAPCHAIN              = 0x0000000000008000,
 
 	// Cubemap texture array is supported.
-	TEXTURECUBEARRAY       = 0x0000000000008000,
+	TEXTURECUBEARRAY       = 0x0000000000010000,
 
 	// CPU direct access to GPU texture memory.
-	TEXTUREDIRECTACCESS    = 0x0000000000010000,
+	TEXTUREDIRECTACCESS    = 0x0000000000020000,
 
 	// External texture is supported.
-	TEXTUREEXTERNAL        = 0x0000000000020000,
+	TEXTUREEXTERNAL        = 0x0000000000040000,
 
 	// External shared texture is supported.
-	TEXTUREEXTERNALSHARED  = 0x0000000000040000,
+	TEXTUREEXTERNALSHARED  = 0x0000000000080000,
 
 	// Transparent back buffer supported.
-	TRANSPARENTBACKBUFFER  = 0x0000000000080000,
+	TRANSPARENTBACKBUFFER  = 0x0000000000100000,
 
 	// Variable Rate Shading
-	VARIABLERATESHADING    = 0x0000000000100000,
+	VARIABLERATESHADING    = 0x0000000000200000,
 
 	// Vertex attribute 10_10_10_2 is supported.
-	VERTEXATTRIBUINT10     = 0x0000000000200000,
+	VERTEXATTRIBUINT10     = 0x0000000000400000,
 
 	// Hardware video decode is supported.
-	VIDEODECODE            = 0x0000000000400000,
+	VIDEODECODE            = 0x0000000000800000,
 
 	// Viewport layer is available in vertex shader.
-	VIEWPORTLAYERARRAY     = 0x0000000000800000,
+	VIEWPORTLAYERARRAY     = 0x0000000001000000,
 }
 
 constdef CapsFormatFlags : inline uint
@@ -3113,6 +3120,16 @@ extern fn TextureHandle get_texture(FrameBufferHandle _handle, char _attachment)
 // Destroy frame buffer.
 // _handle : `Frame buffer handle.`
 extern fn void destroy_frame_buffer(FrameBufferHandle _handle) @cname("bgfx_destroy_frame_buffer");
+
+// Block until a window's swap chain can accept a new frame.
+// 
+// @remarks
+//   Use with `BGFX_RESET_EXTERNAL_FRAME_WAIT`. Each successful wait covers one present.
+//   Can be called from any thread, but not while the frame buffer is being destroyed or recreated.
+// 
+// _handle : `Window frame buffer handle, or `BGFX_INVALID_HANDLE` for the main window.`
+// _timeoutMs : `Timeout in milliseconds.`
+extern fn bool wait_for_frame(FrameBufferHandle _handle, uint _timeoutMs) @cname("bgfx_wait_for_frame");
 
 // Create shader uniform parameter.
 // 

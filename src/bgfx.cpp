@@ -7119,6 +7119,11 @@ namespace bgfx
 		s_ctx->destroyFrameBuffer(_handle);
 	}
 
+	bool waitForFrame(FrameBufferHandle _handle, uint32_t _timeoutMs)
+	{
+		return s_ctx->waitForFrame(_handle, _timeoutMs);
+	}
+
 	UniformHandle createUniform(const char* _name, UniformType::Enum _type, uint16_t _num)
 	{
 		BX_ASSERT(UniformType::End != _type && UniformType::Count > _type

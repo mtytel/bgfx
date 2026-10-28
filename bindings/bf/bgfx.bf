@@ -934,6 +934,12 @@ public static class bgfx
 		Capture                = 0x00000200,
 	
 		/// <summary>
+		/// Don't block on swap chain frame pacing inside `bgfx::frame`, pace with `bgfx::waitForFrame` instead.
+		/// Must be set in `Init::reset` to apply to the main window. Availability depends on: `BGFX_CAPS_EXTERNAL_FRAME_WAIT`.
+		/// </summary>
+		ExternalFrameWait      = 0x00001000,
+	
+		/// <summary>
 		/// Flush rendering after submitting to GPU.
 		/// </summary>
 		FlushAfterRender       = 0x00002000,
@@ -1073,99 +1079,104 @@ public static class bgfx
 		DrawIndirectCount      = 0x0000000000000010,
 	
 		/// <summary>
+		/// `bgfx::waitForFrame` waits on swap chain frame pacing.
+		/// </summary>
+		ExternalFrameWait      = 0x0000000000000020,
+	
+		/// <summary>
 		/// Fragment ordering is available in fragment shader.
 		/// </summary>
-		FragmentOrdering       = 0x0000000000000020,
+		FragmentOrdering       = 0x0000000000000040,
 	
 		/// <summary>
 		/// Graphics debugger is present.
 		/// </summary>
-		GraphicsDebugger       = 0x0000000000000040,
+		GraphicsDebugger       = 0x0000000000000080,
 	
 		/// <summary>
 		/// HDR10 rendering is supported.
 		/// </summary>
-		Hdr10                  = 0x0000000000000080,
+		Hdr10                  = 0x0000000000000100,
 	
 		/// <summary>
 		/// Image Read/Write is supported.
 		/// </summary>
-		ImageRw                = 0x0000000000000100,
+		ImageRw                = 0x0000000000000200,
 	
 		/// <summary>
 		/// 32-bit indices are supported.
 		/// </summary>
-		Index32                = 0x0000000000000200,
+		Index32                = 0x0000000000000400,
 	
 		/// <summary>
 		/// Low latency mode (NVIDIA Reflex) is supported.
 		/// </summary>
-		LowLatency             = 0x0000000000000400,
+		LowLatency             = 0x0000000000000800,
 	
 		/// <summary>
 		/// PrimitiveID is available in fragment shader.
 		/// </summary>
-		PrimitiveId            = 0x0000000000000800,
+		PrimitiveId            = 0x0000000000001000,
 	
 		/// <summary>
 		/// Renderer is on separate thread.
 		/// </summary>
-		RendererMultithreaded  = 0x0000000000001000,
+		RendererMultithreaded  = 0x0000000000002000,
 	
 		/// <summary>
 		/// 16-bit floats are supported in shaders.
 		/// </summary>
-		ShaderF16              = 0x0000000000002000,
+		ShaderF16              = 0x0000000000004000,
 	
 		/// <summary>
 		/// Multiple windows are supported.
 		/// </summary>
-		SwapChain              = 0x0000000000004000,
+		SwapChain              = 0x0000000000008000,
 	
 		/// <summary>
 		/// Cubemap texture array is supported.
 		/// </summary>
-		TextureCubeArray       = 0x0000000000008000,
+		TextureCubeArray       = 0x0000000000010000,
 	
 		/// <summary>
 		/// CPU direct access to GPU texture memory.
 		/// </summary>
-		TextureDirectAccess    = 0x0000000000010000,
+		TextureDirectAccess    = 0x0000000000020000,
 	
 		/// <summary>
 		/// External texture is supported.
 		/// </summary>
-		TextureExternal        = 0x0000000000020000,
+		TextureExternal        = 0x0000000000040000,
 	
 		/// <summary>
 		/// External shared texture is supported.
 		/// </summary>
-		TextureExternalShared  = 0x0000000000040000,
+		TextureExternalShared  = 0x0000000000080000,
 	
 		/// <summary>
 		/// Transparent back buffer supported.
 		/// </summary>
-		TransparentBackbuffer  = 0x0000000000080000,
+		TransparentBackbuffer  = 0x0000000000100000,
 	
 		/// <summary>
 		/// Variable Rate Shading
 		/// </summary>
-		VariableRateShading    = 0x0000000000100000,
+		VariableRateShading    = 0x0000000000200000,
 	
 		/// <summary>
 		/// Vertex attribute 10_10_10_2 is supported.
 		/// </summary>
-		VertexAttribUint10     = 0x0000000000200000,
+		VertexAttribUint10     = 0x0000000000400000,
 	
 		/// <summary>
 		/// Hardware video decode is supported.
 		/// </summary>
-		VideoDecode            = 0x0000000000400000,
+		VideoDecode            = 0x0000000000800000,
 	
 		/// <summary>
 		/// Viewport layer is available in vertex shader.
 		/// </summary>
-		ViewportLayerArray     = 0x0000000000800000,
+		ViewportLayerArray     = 0x0000000001000000,
 	}
 	
 	[AllowDuplicates]
@@ -4217,6 +4228,21 @@ public static class bgfx
 	///
 	[LinkName("bgfx_destroy_frame_buffer")]
 	public static extern void destroy_frame_buffer(FrameBufferHandle _handle);
+	
+	/// <summary>
+	/// Block until a window's swap chain can accept a new frame.
+	/// 
+	/// @remarks
+	///   Use with `BGFX_RESET_EXTERNAL_FRAME_WAIT`. Each successful wait covers one present.
+	///   Can be called from any thread, but not while the frame buffer is being destroyed or recreated.
+	/// 
+	/// </summary>
+	///
+	/// <param name="_handle">Window frame buffer handle, or `BGFX_INVALID_HANDLE` for the main window.</param>
+	/// <param name="_timeoutMs">Timeout in milliseconds.</param>
+	///
+	[LinkName("bgfx_wait_for_frame")]
+	public static extern bool wait_for_frame(FrameBufferHandle _handle, uint32 _timeoutMs);
 	
 	/// <summary>
 	/// Create shader uniform parameter.

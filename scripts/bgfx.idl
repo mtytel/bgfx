@@ -1,7 +1,7 @@
 -- vim: syntax=lua
 -- bgfx interface
 
-version(167)
+version(168)
 
 typedef "bool"
 typedef "char"
@@ -351,6 +351,8 @@ flag.Reset { bits = 32, section = "Reset" }
 	.Vsync                    ( 8) --- Enable V-Sync.
 	.Maxanisotropy            ( 9) --- Turn on/off max anisotropy.
 	.Capture                  (10) --- Begin screen capture.
+	.ExternalFrameWait        (13) --- Don't block on swap chain frame pacing inside `bgfx::frame`, pace with `bgfx::waitForFrame` instead.
+	                               --- Must be set in `Init::reset` to apply to the main window. Availability depends on: `BGFX_CAPS_EXTERNAL_FRAME_WAIT`.
 	.FlushAfterRender         (14) --- Flush rendering after submitting to GPU.
 	.FlipAfterRender          (15) --- This flag specifies where flip occurs. Default behaviour is that flip occurs
 	                               --- before rendering new frame. This flag only has effect when `BGFX_CONFIG_MULTITHREADED=0`.
@@ -396,6 +398,7 @@ flag.Caps { bits = 64, base = 1, name = "Caps", section = "Available Caps" }
 	.ConservativeRaster     --- Conservative rasterization is supported.
 	.DrawIndirect           --- Draw indirect is supported.
 	.DrawIndirectCount      --- Draw indirect with indirect count is supported.
+	.ExternalFrameWait      --- `bgfx::waitForFrame` waits on swap chain frame pacing.
 	.FragmentOrdering       --- Fragment ordering is available in fragment shader.
 	.GraphicsDebugger       --- Graphics debugger is present.
 	.Hdr10                  --- HDR10 rendering is supported.
@@ -2389,6 +2392,18 @@ func.getTexture { section = "Frame Buffers" }
 func.destroy { cname = "destroy_frame_buffer", section = "Frame Buffers" }
 	"void"
 	.handle "FrameBufferHandle" --- Frame buffer handle.
+
+--- Block until a window's swap chain can accept a new frame.
+---
+--- @remarks
+---   Use with `BGFX_RESET_EXTERNAL_FRAME_WAIT`. Each successful wait covers one present.
+---   Can be called from any thread, but not while the frame buffer is being destroyed or recreated.
+---
+func.waitForFrame { section = "Frame Buffers" }
+	"bool"                        --- True when the swap chain is ready, false on timeout. Always true when
+	                              --- `BGFX_CAPS_EXTERNAL_FRAME_WAIT` isn't available.
+	.handle    "FrameBufferHandle" --- Window frame buffer handle, or `BGFX_INVALID_HANDLE` for the main window.
+	.timeoutMs "uint32_t"          --- Timeout in milliseconds.
 
 --- Create shader uniform parameter.
 ---

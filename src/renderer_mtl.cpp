@@ -1005,6 +1005,7 @@ static_assert(BX_COUNTOF(s_accessNames) == Access::Count, "Invalid s_accessNames
 			g_caps.supported |= (0
 				| BGFX_CAPS_BLEND_INDEPENDENT
 				| BGFX_CAPS_COMPUTE
+				| BGFX_CAPS_EXTERNAL_FRAME_WAIT
 				| BGFX_CAPS_INDEX32
 				| BGFX_CAPS_SHADER_F16
 				| BGFX_CAPS_SWAP_CHAIN
@@ -1819,6 +1820,13 @@ static_assert(BX_COUNTOF(s_accessNames) == Access::Count, "Invalid s_accessNames
 			}
 		}
 
+		bool waitForFrame(FrameBufferHandle _handle, uint32_t /*_timeoutMs*/) override
+		{
+			const FrameBufferMtl* frameBuffer = isValid(_handle) ? m_frameBuffers.tryGet(_handle.idx) : &m_mainFrameBuffer;
+			SwapChainMtl* swapChain = NULL != frameBuffer ? frameBuffer->m_swapChain : NULL;
+			return NULL == swapChain || swapChain->waitForFrame();
+		}
+
 		FrameBufferMtl& getFrameBuffer(FrameBufferHandle _fbh)
 		{
 			return isValid(_fbh)
@@ -1837,7 +1845,8 @@ static_assert(BX_COUNTOF(s_accessNames) == Access::Count, "Invalid s_accessNames
 
 		void requestScreenShot(FrameBufferHandle _handle, const char* _filePath) override
 		{
-			SwapChainMtl* swapChain = getFrameBuffer(_handle).m_swapChain;
+			const FrameBufferMtl* frameBuffer = isValid(_handle) ? m_frameBuffers.tryGet(_handle.idx) : &m_mainFrameBuffer;
+			SwapChainMtl* swapChain = NULL != frameBuffer ? frameBuffer->m_swapChain : NULL;
 
 			if (NULL == swapChain
 			||  NULL == swapChain->m_screenshotTarget)
@@ -5059,6 +5068,8 @@ static_assert(BX_COUNTOF(s_accessNames) == Access::Count, "Invalid s_accessNames
 
 	SwapChainMtl::~SwapChainMtl()
 	{
+		CA::MetalDrawable* waited = takeWaitedDrawable();
+		MTL_RELEASE_DEFERRED(waited);
 		MTL_RELEASE(m_metalLayer, 2);
 		MTL_RELEASE_DEFERRED(m_drawable);
 
@@ -5243,6 +5254,9 @@ static_assert(BX_COUNTOF(s_accessNames) == Access::Count, "Invalid s_accessNames
 	{
 		releaseBackBuffer();
 
+		CA::MetalDrawable* waited = takeWaitedDrawable();
+		MTL_RELEASE_DEFERRED(waited);
+
 		const uint32_t maxFrameLatency = _desc.maxFrameLatency;
 		const TextureFormat::Enum formatColor        = _desc.formatColor;
 		const TextureFormat::Enum formatDepthStencil = _desc.formatDepthStencil;
@@ -5404,13 +5418,48 @@ static_assert(BX_COUNTOF(s_accessNames) == Access::Count, "Invalid s_accessNames
 		return murmur.end();
 	}
 
+	bool SwapChainMtl::waitForFrame()
+	{
+		if (NULL != m_waitedDrawable)
+		{
+			return true;
+		}
+
+		NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+		CA::MetalDrawable* drawable = m_metalLayer->nextDrawable();
+
+		if (NULL != drawable)
+		{
+			retain(drawable);
+			bx::atomicExchangePtr( (void**)&m_waitedDrawable, drawable);
+		}
+
+		pool->release();
+		return NULL != drawable;
+	}
+
+	CA::MetalDrawable* SwapChainMtl::takeWaitedDrawable()
+	{
+		return (CA::MetalDrawable*)bx::atomicExchangePtr( (void**)&m_waitedDrawable, NULL);
+	}
+
 	MTL::Texture* SwapChainMtl::currentDrawableTexture()
 	{
 		if (NULL == m_drawableTexture)
 		{
 			const bool occluded = isWindowOccluded(m_nwh);
 
-			m_drawable = occluded ? NULL : m_metalLayer->nextDrawable();
+			CA::MetalDrawable* waited = takeWaitedDrawable();
+
+			if (NULL != waited
+			&& (occluded
+			||  waited->texture()->width()  != NS::UInteger(m_metalLayer->drawableSize().width)
+			||  waited->texture()->height() != NS::UInteger(m_metalLayer->drawableSize().height) ) )
+			{
+				MTL_RELEASE_DEFERRED(waited);
+			}
+
+			m_drawable = NULL != waited || occluded ? waited : m_metalLayer->nextDrawable();
 
 			if (m_drawable != NULL)
 			{
@@ -5447,6 +5496,8 @@ static_assert(BX_COUNTOF(s_accessNames) == Access::Count, "Invalid s_accessNames
 				MTL_CHECK_REFCOUNT(m_drawableTexture, 1);
 				MTL_RELEASE(desc, 0);
 			}
+
+			MTL_RELEASE_DEFERRED(waited);
 		}
 
 		return m_drawableTexture;

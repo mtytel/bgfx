@@ -441,6 +441,8 @@ namespace bgfx { namespace d3d11
 		DxgiSwapChainDesc getSwapChainDesc() const;
 		void createSwapChainViews();
 		void destroySwapChainViews();
+		void createFrameLatencyWaitable();
+		void destroyFrameLatencyWaitable();
 		uint16_t destroy();
 		void preReset(bool _force = false);
 		void postReset();
