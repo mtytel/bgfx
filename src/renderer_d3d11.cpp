@@ -6033,6 +6033,7 @@ namespace bgfx { namespace d3d11
 		if (scd.waitable)
 		{
 			m_frameLatencyWaitableObject = m_swapChain->GetFrameLatencyWaitableObject();
+			WaitForSingleObjectEx( (HANDLE)m_frameLatencyWaitableObject, 1000, TRUE);
 		}
 
 		DX_CHECK(s_renderD3D11->m_dxgi.m_factory->MakeWindowAssociation(
