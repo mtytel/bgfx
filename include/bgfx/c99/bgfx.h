@@ -2715,6 +2715,22 @@ BGFX_C_API bgfx_texture_handle_t bgfx_get_texture(bgfx_frame_buffer_handle_t _ha
 BGFX_C_API void bgfx_destroy_frame_buffer(bgfx_frame_buffer_handle_t _handle);
 
 /**
+ * Block until a window's swap chain can accept a new frame.
+ *
+ * @remarks
+ *   Use with `BGFX_RESET_EXTERNAL_FRAME_WAIT`. Each successful wait covers one present.
+ *   Can be called from any thread, but not while the frame buffer is being destroyed or recreated.
+ *
+ * @param[in] _handle Window frame buffer handle, or `BGFX_INVALID_HANDLE` for the main window.
+ * @param[in] _timeoutMs Timeout in milliseconds.
+ *
+ * @returns True when the swap chain is ready, false on timeout. Always true when
+ *  `BGFX_CAPS_EXTERNAL_FRAME_WAIT` isn't available.
+ *
+ */
+BGFX_C_API bool bgfx_wait_for_frame(bgfx_frame_buffer_handle_t _handle, uint32_t _timeoutMs);
+
+/**
  * Create shader uniform parameter.
  *
  * @remarks
@@ -4626,6 +4642,7 @@ typedef enum bgfx_function_id
     BGFX_FUNCTION_ID_SET_FRAME_BUFFER_NAME,
     BGFX_FUNCTION_ID_GET_TEXTURE,
     BGFX_FUNCTION_ID_DESTROY_FRAME_BUFFER,
+    BGFX_FUNCTION_ID_WAIT_FOR_FRAME,
     BGFX_FUNCTION_ID_CREATE_UNIFORM,
     BGFX_FUNCTION_ID_CREATE_UNIFORM_WITH_FREQ,
     BGFX_FUNCTION_ID_GET_UNIFORM_INFO,
@@ -4859,6 +4876,7 @@ struct bgfx_interface_vtbl
     void (*set_frame_buffer_name)(bgfx_frame_buffer_handle_t _handle, const char* _name, int32_t _len);
     bgfx_texture_handle_t (*get_texture)(bgfx_frame_buffer_handle_t _handle, uint8_t _attachment);
     void (*destroy_frame_buffer)(bgfx_frame_buffer_handle_t _handle);
+    bool (*wait_for_frame)(bgfx_frame_buffer_handle_t _handle, uint32_t _timeoutMs);
     bgfx_uniform_handle_t (*create_uniform)(const char* _name, bgfx_uniform_type_t _type, uint16_t _num);
     bgfx_uniform_handle_t (*create_uniform_with_freq)(const char* _name, bgfx_uniform_freq_t _freq, bgfx_uniform_type_t _type, uint16_t _num);
     void (*get_uniform_info)(bgfx_uniform_handle_t _handle, bgfx_uniform_info_t * _info);

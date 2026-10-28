@@ -916,6 +916,9 @@ class ResetFlags(enum.IntFlag):
 	Maxanisotropy = 0x100
 	# Begin screen capture.
 	Capture = 0x200
+	# Don't block on swap chain frame pacing inside `bgfx::frame`, pace with `bgfx::waitForFrame` instead.
+	# Must be set in `Init::reset` to apply to the main window. Availability depends on: `BGFX_CAPS_EXTERNAL_FRAME_WAIT`.
+	ExternalFrameWait = 0x1000
 	# Flush rendering after submitting to GPU.
 	FlushAfterRender = 0x2000
 	# This flag specifies where flip occurs. Default behaviour is that flip occurs
@@ -1048,44 +1051,46 @@ class CapsFlags(enum.IntFlag):
 	DrawIndirect = 0x8
 	# Draw indirect with indirect count is supported.
 	DrawIndirectCount = 0x10
+	# `bgfx::waitForFrame` waits on swap chain frame pacing.
+	ExternalFrameWait = 0x20
 	# Fragment ordering is available in fragment shader.
-	FragmentOrdering = 0x20
+	FragmentOrdering = 0x40
 	# Graphics debugger is present.
-	GraphicsDebugger = 0x40
+	GraphicsDebugger = 0x80
 	# HDR10 rendering is supported.
-	Hdr10 = 0x80
+	Hdr10 = 0x100
 	# Image Read/Write is supported.
-	ImageRw = 0x100
+	ImageRw = 0x200
 	# 32-bit indices are supported.
-	Index32 = 0x200
+	Index32 = 0x400
 	# Low latency mode (NVIDIA Reflex) is supported.
-	LowLatency = 0x400
+	LowLatency = 0x800
 	# PrimitiveID is available in fragment shader.
-	PrimitiveId = 0x800
+	PrimitiveId = 0x1000
 	# Renderer is on separate thread.
-	RendererMultithreaded = 0x1000
+	RendererMultithreaded = 0x2000
 	# 16-bit floats are supported in shaders.
-	ShaderF16 = 0x2000
+	ShaderF16 = 0x4000
 	# Multiple windows are supported.
-	SwapChain = 0x4000
+	SwapChain = 0x8000
 	# Cubemap texture array is supported.
-	TextureCubeArray = 0x8000
+	TextureCubeArray = 0x10000
 	# CPU direct access to GPU texture memory.
-	TextureDirectAccess = 0x10000
+	TextureDirectAccess = 0x20000
 	# External texture is supported.
-	TextureExternal = 0x20000
+	TextureExternal = 0x40000
 	# External shared texture is supported.
-	TextureExternalShared = 0x40000
+	TextureExternalShared = 0x80000
 	# Transparent back buffer supported.
-	TransparentBackbuffer = 0x80000
+	TransparentBackbuffer = 0x100000
 	# Variable Rate Shading
-	VariableRateShading = 0x100000
+	VariableRateShading = 0x200000
 	# Vertex attribute 10_10_10_2 is supported.
-	VertexAttribUint10 = 0x200000
+	VertexAttribUint10 = 0x400000
 	# Hardware video decode is supported.
-	VideoDecode = 0x400000
+	VideoDecode = 0x800000
 	# Viewport layer is available in vertex shader.
-	ViewportLayerArray = 0x800000
+	ViewportLayerArray = 0x1000000
 
 class CapsFormatFlags(enum.IntFlag):
 	# Texture format is not supported.
@@ -2531,6 +2536,14 @@ def bgfx_get_texture(_handle: FrameBufferHandle, _attachment: int, /) -> Texture
 
 # Destroy frame buffer.
 def bgfx_destroy_frame_buffer(_handle: FrameBufferHandle, /) -> None: ...
+
+# Block until a window's swap chain can accept a new frame.
+# 
+# @remarks
+#   Use with `BGFX_RESET_EXTERNAL_FRAME_WAIT`. Each successful wait covers one present.
+#   Can be called from any thread, but not while the frame buffer is being destroyed or recreated.
+# 
+def bgfx_wait_for_frame(_handle: FrameBufferHandle, _timeoutMs: int, /) -> bool: ...
 
 # Create shader uniform parameter.
 # 

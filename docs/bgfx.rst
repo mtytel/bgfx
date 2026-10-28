@@ -49,6 +49,7 @@ Reset flags control back-buffer resolution, MSAA, vsync, and other global render
 .. doxygendefine:: BGFX_RESET_VSYNC
 .. doxygendefine:: BGFX_RESET_MAXANISOTROPY
 .. doxygendefine:: BGFX_RESET_CAPTURE
+.. doxygendefine:: BGFX_RESET_EXTERNAL_FRAME_WAIT
 .. doxygendefine:: BGFX_RESET_FLUSH_AFTER_RENDER
 .. doxygendefine:: BGFX_RESET_FLIP_AFTER_RENDER
 .. doxygendefine:: BGFX_RESET_SRGB_BACKBUFFER
@@ -154,6 +155,7 @@ Individual capability flags.
 .. doxygendefine:: BGFX_CAPS_CONSERVATIVE_RASTER
 .. doxygendefine:: BGFX_CAPS_DRAW_INDIRECT
 .. doxygendefine:: BGFX_CAPS_DRAW_INDIRECT_COUNT
+.. doxygendefine:: BGFX_CAPS_EXTERNAL_FRAME_WAIT
 .. doxygendefine:: BGFX_CAPS_FRAGMENT_ORDERING
 .. doxygendefine:: BGFX_CAPS_GRAPHICS_DEBUGGER
 .. doxygendefine:: BGFX_CAPS_HDR10
@@ -671,6 +673,7 @@ Frame Buffers
 .. doxygenfunction:: bgfx::setName(FrameBufferHandle _handle, const char* _name, int32_t _len = INT32_MAX)
 .. doxygenfunction:: bgfx::getTexture
 .. doxygenfunction:: bgfx::destroy(FrameBufferHandle _handle)
+.. doxygenfunction:: bgfx::waitForFrame
 
 Instance Buffer
 ~~~~~~~~~~~~~~~

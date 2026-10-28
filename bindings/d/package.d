@@ -9,7 +9,7 @@ import bindbc.common.types: c_int64, c_uint64, va_list;
 import bindbc.bgfx.config;
 static import bgfx.impl;
 
-enum uint apiVersion = 167;
+enum uint apiVersion = 168;
 
 alias ViewID = ushort;
 
@@ -476,6 +476,11 @@ enum Reset: Reset_{
 	vsync                  = 0x0000_0080, ///Enable V-Sync.
 	maxAnisotropy          = 0x0000_0100, ///Turn on/off max anisotropy.
 	capture                = 0x0000_0200, ///Begin screen capture.
+	/**
+	Don't block on swap chain frame pacing inside `bgfx::frame`, pace with `bgfx::waitForFrame` instead.
+	Must be set in `Init::reset` to apply to the main window. Availability depends on: `BGFX_CAPS_EXTERNAL_FRAME_WAIT`.
+	*/
+	externalFrameWait      = 0x0000_1000,
 	flushAfterRender       = 0x0000_2000, ///Flush rendering after submitting to GPU.
 	/**
 	This flag specifies where flip occurs. Default behaviour is that flip occurs
@@ -542,25 +547,26 @@ enum CapFlags: CapFlags_{
 	conservativeRaster     = 0x0000_0000_0000_0004, ///Conservative rasterization is supported.
 	drawIndirect           = 0x0000_0000_0000_0008, ///Draw indirect is supported.
 	drawIndirectCount      = 0x0000_0000_0000_0010, ///Draw indirect with indirect count is supported.
-	fragmentOrdering       = 0x0000_0000_0000_0020, ///Fragment ordering is available in fragment shader.
-	graphicsDebugger       = 0x0000_0000_0000_0040, ///Graphics debugger is present.
-	hdr10                  = 0x0000_0000_0000_0080, ///HDR10 rendering is supported.
-	imageRW                = 0x0000_0000_0000_0100, ///Image Read/Write is supported.
-	index32                = 0x0000_0000_0000_0200, ///32-bit indices are supported.
-	lowLatency             = 0x0000_0000_0000_0400, ///Low latency mode (NVIDIA Reflex) is supported.
-	primitiveID            = 0x0000_0000_0000_0800, ///PrimitiveID is available in fragment shader.
-	rendererMultithreaded  = 0x0000_0000_0000_1000, ///Renderer is on separate thread.
-	shaderF16              = 0x0000_0000_0000_2000, ///16-bit floats are supported in shaders.
-	swapChain              = 0x0000_0000_0000_4000, ///Multiple windows are supported.
-	textureCubeArray       = 0x0000_0000_0000_8000, ///Cubemap texture array is supported.
-	textureDirectAccess    = 0x0000_0000_0001_0000, ///CPU direct access to GPU texture memory.
-	textureExternal        = 0x0000_0000_0002_0000, ///External texture is supported.
-	textureExternalShared  = 0x0000_0000_0004_0000, ///External shared texture is supported.
-	transparentBackbuffer  = 0x0000_0000_0008_0000, ///Transparent back buffer supported.
-	variableRateShading    = 0x0000_0000_0010_0000, ///Variable Rate Shading
-	vertexAttribUint10     = 0x0000_0000_0020_0000, ///Vertex attribute 10_10_10_2 is supported.
-	videoDecode            = 0x0000_0000_0040_0000, ///Hardware video decode is supported.
-	viewportLayerArray     = 0x0000_0000_0080_0000, ///Viewport layer is available in vertex shader.
+	externalFrameWait      = 0x0000_0000_0000_0020, ///`bgfx::waitForFrame` waits on swap chain frame pacing.
+	fragmentOrdering       = 0x0000_0000_0000_0040, ///Fragment ordering is available in fragment shader.
+	graphicsDebugger       = 0x0000_0000_0000_0080, ///Graphics debugger is present.
+	hdr10                  = 0x0000_0000_0000_0100, ///HDR10 rendering is supported.
+	imageRW                = 0x0000_0000_0000_0200, ///Image Read/Write is supported.
+	index32                = 0x0000_0000_0000_0400, ///32-bit indices are supported.
+	lowLatency             = 0x0000_0000_0000_0800, ///Low latency mode (NVIDIA Reflex) is supported.
+	primitiveID            = 0x0000_0000_0000_1000, ///PrimitiveID is available in fragment shader.
+	rendererMultithreaded  = 0x0000_0000_0000_2000, ///Renderer is on separate thread.
+	shaderF16              = 0x0000_0000_0000_4000, ///16-bit floats are supported in shaders.
+	swapChain              = 0x0000_0000_0000_8000, ///Multiple windows are supported.
+	textureCubeArray       = 0x0000_0000_0001_0000, ///Cubemap texture array is supported.
+	textureDirectAccess    = 0x0000_0000_0002_0000, ///CPU direct access to GPU texture memory.
+	textureExternal        = 0x0000_0000_0004_0000, ///External texture is supported.
+	textureExternalShared  = 0x0000_0000_0008_0000, ///External shared texture is supported.
+	transparentBackbuffer  = 0x0000_0000_0010_0000, ///Transparent back buffer supported.
+	variableRateShading    = 0x0000_0000_0020_0000, ///Variable Rate Shading
+	vertexAttribUint10     = 0x0000_0000_0040_0000, ///Vertex attribute 10_10_10_2 is supported.
+	videoDecode            = 0x0000_0000_0080_0000, ///Hardware video decode is supported.
+	viewportLayerArray     = 0x0000_0000_0100_0000, ///Viewport layer is available in vertex shader.
 }
 
 alias CapsFormat_ = uint;
@@ -3583,6 +3589,19 @@ mixin(joinFnBinds((){
 			handle = Frame buffer handle.
 		*/
 		{q{void}, q{destroy}, q{FrameBufferHandle handle}, ext: `C++, "bgfx"`},
+		
+		/**
+		* Block until a window's swap chain can accept a new frame.
+		* 
+		* Remarks:
+		*   Use with `BGFX_RESET_EXTERNAL_FRAME_WAIT`. Each successful wait covers one present.
+		*   Can be called from any thread, but not while the frame buffer is being destroyed or recreated.
+		* 
+		Params:
+			handle = Window frame buffer handle, or `BGFX_INVALID_HANDLE` for the main window.
+			timeoutMs = Timeout in milliseconds.
+		*/
+		{q{bool}, q{waitForFrame}, q{FrameBufferHandle handle, uint timeoutMs}, ext: `C++, "bgfx"`},
 		
 		/**
 		* Create shader uniform parameter.

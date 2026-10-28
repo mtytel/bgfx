@@ -832,6 +832,7 @@ namespace bgfx { namespace d3d11
 
 		bool init(const Init& _init)
 		{
+			m_reset = _init.reset & (~BGFX_RESET_INTERNAL_FORCE);
 			m_frameBuffers.alloc(kMainFrameBufferIdx);
 
 			struct ErrorState
@@ -1182,7 +1183,11 @@ namespace bgfx { namespace d3d11
 					m_scd.flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 					m_scd.maxFrameLatency = bx::min<uint8_t>(_init.swapChain.maxFrameLatency, BGFX_CONFIG_MAX_FRAME_LATENCY);
-					m_scd.waitable        = false;
+					m_scd.waitable        = true
+						&& BX_ENABLED(BX_PLATFORM_WINDOWS)
+						&& 0 != (m_reset & BGFX_RESET_EXTERNAL_FRAME_WAIT)
+						&& (DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL == m_scd.swapEffect || DXGI_SWAP_EFFECT_FLIP_DISCARD == m_scd.swapEffect)
+						;
 					m_scd.nwh             = _init.swapChain.nwh;
 					m_scd.ndt             = _init.swapChain.ndt;
 					m_scd.windowed        = true;
@@ -1212,6 +1217,7 @@ namespace bgfx { namespace d3d11
 							m_scd.swapEffect  = m_swapEffect;
 							// DXGI_SCALING_NONE is only valid for flip-model swap chains.
 							m_scd.scaling     = DXGI_SCALING_STRETCH;
+							m_scd.waitable    = false;
 							hr = m_dxgi.createSwapChain(m_device
 								, m_scd
 								, &mainFrameBuffer().m_swapChain
@@ -1224,8 +1230,12 @@ namespace bgfx { namespace d3d11
 							}
 						}
 
+						if (m_scd.waitable)
+						{
+							mainFrameBuffer().createFrameLatencyWaitable();
+						}
+
 						m_mainSwapChain       = _init.swapChain;
-						m_reset = _init.reset & (~BGFX_RESET_INTERNAL_FORCE);
 
 						m_textVideoMem.resize(false, _init.swapChain.width, _init.swapChain.height);
 						m_textVideoMem.clear();
@@ -1315,6 +1325,9 @@ namespace bgfx { namespace d3d11
 						| BGFX_CAPS_TEXTURE_DIRECT_ACCESS
 						: 0)
 					| BGFX_CAPS_SWAP_CHAIN
+					| (BX_ENABLED(BX_PLATFORM_WINDOWS) && DXGI_SWAP_EFFECT_DISCARD != m_swapEffect
+						? BGFX_CAPS_EXTERNAL_FRAME_WAIT
+						: 0)
 					| BGFX_CAPS_DRAW_INDIRECT
 					| ( (m_deviceInterfaceVersion >= 3)
 						? BGFX_CAPS_CONSERVATIVE_RASTER
@@ -1701,6 +1714,7 @@ namespace bgfx { namespace d3d11
 
 				m_dxgi.removeSwapChain(m_scd);
 
+				mainFrameBuffer().destroyFrameLatencyWaitable();
 				DX_RELEASE(mainFrameBuffer().m_swapChain, 0);
 				DX_RELEASE(m_deviceCtx, 0);
 				DX_RELEASE(m_device, 0);
@@ -1786,6 +1800,7 @@ namespace bgfx { namespace d3d11
 
 			m_dxgi.removeSwapChain(m_scd);
 
+			mainFrameBuffer().destroyFrameLatencyWaitable();
 			DX_RELEASE(mainFrameBuffer().m_swapChain, 0);
 			DX_RELEASE(m_deviceCtx, 0);
 			DX_RELEASE(m_device, 0);
@@ -2124,6 +2139,23 @@ namespace bgfx { namespace d3d11
 					}
 				}
 			}
+		}
+
+		bool waitForFrame(FrameBufferHandle _handle, uint32_t _timeoutMs) override
+		{
+#if BX_PLATFORM_WINDOWS
+			const FrameBufferD3D11* frameBuffer = m_frameBuffers.tryGet(isValid(_handle) ? _handle.idx : kMainFrameBufferIdx);
+			void* waitable = NULL != frameBuffer ? frameBuffer->m_frameLatencyWaitableObject : NULL;
+
+			if (NULL != waitable)
+			{
+				return WAIT_OBJECT_0 == WaitForSingleObjectEx( (HANDLE)waitable, _timeoutMs, TRUE);
+			}
+#else
+			BX_UNUSED(_handle, _timeoutMs);
+#endif // BX_PLATFORM_WINDOWS
+
+			return true;
 		}
 
 		void requestScreenShot(FrameBufferHandle _handle, const char* _filePath) override
@@ -2649,6 +2681,7 @@ namespace bgfx { namespace d3d11
 
 						m_dxgi.removeSwapChain(m_scd);
 
+						mainFrameBuffer().destroyFrameLatencyWaitable();
 						DX_RELEASE(mainFrameBuffer().m_swapChain, 0);
 
 						if (newWindow)
@@ -2662,6 +2695,12 @@ namespace bgfx { namespace d3d11
 							, &mainFrameBuffer().m_swapChain
 							);
 						BGFX_FATAL(SUCCEEDED(hr), bgfx::Fatal::UnableToInitialize, "Failed to create swap chain.");
+
+						if (SUCCEEDED(hr)
+						&&  m_scd.waitable)
+						{
+							mainFrameBuffer().createFrameLatencyWaitable();
+						}
 
 						mainFrameBuffer().m_nwh = m_scd.nwh;
 
@@ -6032,8 +6071,7 @@ namespace bgfx { namespace d3d11
 #if BX_PLATFORM_WINDOWS
 		if (scd.waitable)
 		{
-			m_frameLatencyWaitableObject = m_swapChain->GetFrameLatencyWaitableObject();
-			WaitForSingleObjectEx( (HANDLE)m_frameLatencyWaitableObject, 1000, TRUE);
+			createFrameLatencyWaitable();
 		}
 
 		DX_CHECK(s_renderD3D11->m_dxgi.m_factory->MakeWindowAssociation(
@@ -6214,7 +6252,19 @@ namespace bgfx { namespace d3d11
 		DX_RELEASE(m_msaaRt, 0);
 	}
 
-	uint16_t FrameBufferD3D11::destroy()
+	void FrameBufferD3D11::createFrameLatencyWaitable()
+	{
+#if BX_PLATFORM_WINDOWS
+		m_frameLatencyWaitableObject = m_swapChain->GetFrameLatencyWaitableObject();
+
+		if (0 == (s_renderD3D11->m_reset & BGFX_RESET_EXTERNAL_FRAME_WAIT) )
+		{
+			WaitForSingleObjectEx( (HANDLE)m_frameLatencyWaitableObject, 1000, TRUE);
+		}
+#endif // BX_PLATFORM_WINDOWS
+	}
+
+	void FrameBufferD3D11::destroyFrameLatencyWaitable()
 	{
 #if BX_PLATFORM_WINDOWS
 		if (NULL != m_frameLatencyWaitableObject)
@@ -6223,6 +6273,11 @@ namespace bgfx { namespace d3d11
 			m_frameLatencyWaitableObject = NULL;
 		}
 #endif // BX_PLATFORM_WINDOWS
+	}
+
+	uint16_t FrameBufferD3D11::destroy()
+	{
+		destroyFrameLatencyWaitable();
 
 		if (isSwapChain() )
 		{
@@ -6597,7 +6652,8 @@ namespace bgfx { namespace d3d11
 		m_needPresent = false;
 
 #if BX_PLATFORM_WINDOWS
-		if (NULL != m_frameLatencyWaitableObject)
+		if (NULL != m_frameLatencyWaitableObject
+		&&  0 == (s_renderD3D11->m_reset & BGFX_RESET_EXTERNAL_FRAME_WAIT) )
 		{
 			WaitForSingleObjectEx( (HANDLE)m_frameLatencyWaitableObject, 1000, TRUE);
 		}

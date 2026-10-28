@@ -491,6 +491,7 @@ class ResetFlags(enum.IntFlag):
 	Vsync = 0x80
 	Maxanisotropy = 0x100
 	Capture = 0x200
+	ExternalFrameWait = 0x1000
 	FlushAfterRender = 0x2000
 	FlipAfterRender = 0x4000
 	SrgbBackbuffer = 0x8000
@@ -569,25 +570,26 @@ class CapsFlags(enum.IntFlag):
 	ConservativeRaster = 0x4
 	DrawIndirect = 0x8
 	DrawIndirectCount = 0x10
-	FragmentOrdering = 0x20
-	GraphicsDebugger = 0x40
-	Hdr10 = 0x80
-	ImageRw = 0x100
-	Index32 = 0x200
-	LowLatency = 0x400
-	PrimitiveId = 0x800
-	RendererMultithreaded = 0x1000
-	ShaderF16 = 0x2000
-	SwapChain = 0x4000
-	TextureCubeArray = 0x8000
-	TextureDirectAccess = 0x10000
-	TextureExternal = 0x20000
-	TextureExternalShared = 0x40000
-	TransparentBackbuffer = 0x80000
-	VariableRateShading = 0x100000
-	VertexAttribUint10 = 0x200000
-	VideoDecode = 0x400000
-	ViewportLayerArray = 0x800000
+	ExternalFrameWait = 0x20
+	FragmentOrdering = 0x40
+	GraphicsDebugger = 0x80
+	Hdr10 = 0x100
+	ImageRw = 0x200
+	Index32 = 0x400
+	LowLatency = 0x800
+	PrimitiveId = 0x1000
+	RendererMultithreaded = 0x2000
+	ShaderF16 = 0x4000
+	SwapChain = 0x8000
+	TextureCubeArray = 0x10000
+	TextureDirectAccess = 0x20000
+	TextureExternal = 0x40000
+	TextureExternalShared = 0x80000
+	TransparentBackbuffer = 0x100000
+	VariableRateShading = 0x200000
+	VertexAttribUint10 = 0x400000
+	VideoDecode = 0x800000
+	ViewportLayerArray = 0x1000000
 
 class CapsFormatFlags(enum.IntFlag):
 	TextureNone = 0x0
@@ -1493,6 +1495,10 @@ def _bind(lib):
 	bgfx_destroy_frame_buffer = lib.bgfx_destroy_frame_buffer
 	bgfx_destroy_frame_buffer.argtypes = [FrameBufferHandle]
 	bgfx_destroy_frame_buffer.restype = None
+	global bgfx_wait_for_frame
+	bgfx_wait_for_frame = lib.bgfx_wait_for_frame
+	bgfx_wait_for_frame.argtypes = [FrameBufferHandle, ctypes.c_uint32]
+	bgfx_wait_for_frame.restype = ctypes.c_bool
 	global bgfx_create_uniform
 	bgfx_create_uniform = lib.bgfx_create_uniform
 	bgfx_create_uniform.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_uint16]

@@ -3921,6 +3921,11 @@ namespace bgfx { namespace gl
 			}
 		}
 
+		bool waitForFrame(FrameBufferHandle /*_handle*/, uint32_t /*_timeoutMs*/) override
+		{
+			return true;
+		}
+
 		void requestScreenShot(FrameBufferHandle _handle, const char* _filePath) override
 		{
 			SwapChainGL* swapChain = NULL;

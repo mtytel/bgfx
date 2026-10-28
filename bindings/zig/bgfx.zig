@@ -581,6 +581,10 @@ pub const ResetFlags_Maxanisotropy: ResetFlags          = 0x00000100;
 /// Begin screen capture.
 pub const ResetFlags_Capture: ResetFlags                = 0x00000200;
 
+/// Don't block on swap chain frame pacing inside `bgfx::frame`, pace with `bgfx::waitForFrame` instead.
+/// Must be set in `Init::reset` to apply to the main window. Availability depends on: `BGFX_CAPS_EXTERNAL_FRAME_WAIT`.
+pub const ResetFlags_ExternalFrameWait: ResetFlags      = 0x00001000;
+
 /// Flush rendering after submitting to GPU.
 pub const ResetFlags_FlushAfterRender: ResetFlags       = 0x00002000;
 
@@ -666,62 +670,65 @@ pub const CapsFlags_DrawIndirect: CapsFlags           = 0x0000000000000008;
 /// Draw indirect with indirect count is supported.
 pub const CapsFlags_DrawIndirectCount: CapsFlags      = 0x0000000000000010;
 
+/// `bgfx::waitForFrame` waits on swap chain frame pacing.
+pub const CapsFlags_ExternalFrameWait: CapsFlags      = 0x0000000000000020;
+
 /// Fragment ordering is available in fragment shader.
-pub const CapsFlags_FragmentOrdering: CapsFlags       = 0x0000000000000020;
+pub const CapsFlags_FragmentOrdering: CapsFlags       = 0x0000000000000040;
 
 /// Graphics debugger is present.
-pub const CapsFlags_GraphicsDebugger: CapsFlags       = 0x0000000000000040;
+pub const CapsFlags_GraphicsDebugger: CapsFlags       = 0x0000000000000080;
 
 /// HDR10 rendering is supported.
-pub const CapsFlags_Hdr10: CapsFlags                  = 0x0000000000000080;
+pub const CapsFlags_Hdr10: CapsFlags                  = 0x0000000000000100;
 
 /// Image Read/Write is supported.
-pub const CapsFlags_ImageRw: CapsFlags                = 0x0000000000000100;
+pub const CapsFlags_ImageRw: CapsFlags                = 0x0000000000000200;
 
 /// 32-bit indices are supported.
-pub const CapsFlags_Index32: CapsFlags                = 0x0000000000000200;
+pub const CapsFlags_Index32: CapsFlags                = 0x0000000000000400;
 
 /// Low latency mode (NVIDIA Reflex) is supported.
-pub const CapsFlags_LowLatency: CapsFlags             = 0x0000000000000400;
+pub const CapsFlags_LowLatency: CapsFlags             = 0x0000000000000800;
 
 /// PrimitiveID is available in fragment shader.
-pub const CapsFlags_PrimitiveId: CapsFlags            = 0x0000000000000800;
+pub const CapsFlags_PrimitiveId: CapsFlags            = 0x0000000000001000;
 
 /// Renderer is on separate thread.
-pub const CapsFlags_RendererMultithreaded: CapsFlags  = 0x0000000000001000;
+pub const CapsFlags_RendererMultithreaded: CapsFlags  = 0x0000000000002000;
 
 /// 16-bit floats are supported in shaders.
-pub const CapsFlags_ShaderF16: CapsFlags              = 0x0000000000002000;
+pub const CapsFlags_ShaderF16: CapsFlags              = 0x0000000000004000;
 
 /// Multiple windows are supported.
-pub const CapsFlags_SwapChain: CapsFlags              = 0x0000000000004000;
+pub const CapsFlags_SwapChain: CapsFlags              = 0x0000000000008000;
 
 /// Cubemap texture array is supported.
-pub const CapsFlags_TextureCubeArray: CapsFlags       = 0x0000000000008000;
+pub const CapsFlags_TextureCubeArray: CapsFlags       = 0x0000000000010000;
 
 /// CPU direct access to GPU texture memory.
-pub const CapsFlags_TextureDirectAccess: CapsFlags    = 0x0000000000010000;
+pub const CapsFlags_TextureDirectAccess: CapsFlags    = 0x0000000000020000;
 
 /// External texture is supported.
-pub const CapsFlags_TextureExternal: CapsFlags        = 0x0000000000020000;
+pub const CapsFlags_TextureExternal: CapsFlags        = 0x0000000000040000;
 
 /// External shared texture is supported.
-pub const CapsFlags_TextureExternalShared: CapsFlags  = 0x0000000000040000;
+pub const CapsFlags_TextureExternalShared: CapsFlags  = 0x0000000000080000;
 
 /// Transparent back buffer supported.
-pub const CapsFlags_TransparentBackbuffer: CapsFlags  = 0x0000000000080000;
+pub const CapsFlags_TransparentBackbuffer: CapsFlags  = 0x0000000000100000;
 
 /// Variable Rate Shading
-pub const CapsFlags_VariableRateShading: CapsFlags    = 0x0000000000100000;
+pub const CapsFlags_VariableRateShading: CapsFlags    = 0x0000000000200000;
 
 /// Vertex attribute 10_10_10_2 is supported.
-pub const CapsFlags_VertexAttribUint10: CapsFlags     = 0x0000000000200000;
+pub const CapsFlags_VertexAttribUint10: CapsFlags     = 0x0000000000400000;
 
 /// Hardware video decode is supported.
-pub const CapsFlags_VideoDecode: CapsFlags            = 0x0000000000400000;
+pub const CapsFlags_VideoDecode: CapsFlags            = 0x0000000000800000;
 
 /// Viewport layer is available in vertex shader.
-pub const CapsFlags_ViewportLayerArray: CapsFlags     = 0x0000000000800000;
+pub const CapsFlags_ViewportLayerArray: CapsFlags     = 0x0000000001000000;
 
 pub const CapsFormatFlags = u32;
 /// Texture format is not supported.
@@ -3439,6 +3446,19 @@ pub inline fn destroyFrameBuffer(_handle: FrameBufferHandle) void {
     return bgfx_destroy_frame_buffer(_handle);
 }
 extern fn bgfx_destroy_frame_buffer(_handle: FrameBufferHandle) void;
+
+/// Block until a window's swap chain can accept a new frame.
+/// 
+/// @remarks
+///   Use with `BGFX_RESET_EXTERNAL_FRAME_WAIT`. Each successful wait covers one present.
+///   Can be called from any thread, but not while the frame buffer is being destroyed or recreated.
+/// 
+/// <param name="_handle">Window frame buffer handle, or `BGFX_INVALID_HANDLE` for the main window.</param>
+/// <param name="_timeoutMs">Timeout in milliseconds.</param>
+pub inline fn waitForFrame(_handle: FrameBufferHandle, _timeoutMs: u32) bool {
+    return bgfx_wait_for_frame(_handle, _timeoutMs);
+}
+extern fn bgfx_wait_for_frame(_handle: FrameBufferHandle, _timeoutMs: u32) bool;
 
 /// Create shader uniform parameter.
 /// 
