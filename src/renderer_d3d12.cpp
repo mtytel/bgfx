@@ -8643,13 +8643,6 @@ namespace bgfx { namespace d3d12
 			hr = !isLost(hr) ? S_OK : hr;
 			m_needPresent = false;
 
-#if !BX_PLATFORM_LINUX
-			if (NULL != m_frameLatencyWaitableObject)
-			{
-				WaitForSingleObjectEx( (HANDLE)m_frameLatencyWaitableObject, 1000, TRUE);
-			}
-#endif // !BX_PLATFORM_LINUX
-
 			return hr;
 		}
 
