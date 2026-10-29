@@ -2455,9 +2455,20 @@ namespace bgfx { namespace d3d11
 					presentFlags |= DXGI_PRESENT_ALLOW_TEARING;
 				}
 
+				void* frameLatencyWaitableObject[BGFX_CONFIG_MAX_FRAME_BUFFERS];
+				uint32_t numFrameLatencyWaitableObjects = 0;
+
 				for (uint32_t ii = 1, num = m_numWindows; ii < num && SUCCEEDED(hr); ++ii)
 				{
-					hr = m_frameBuffers[m_windows[ii].idx].present(syncInterval, presentFlags);
+					FrameBufferD3D11& frameBuffer = m_frameBuffers[m_windows[ii].idx];
+
+					if (frameBuffer.m_needPresent
+					&&  NULL != frameBuffer.m_frameLatencyWaitableObject)
+					{
+						frameLatencyWaitableObject[numFrameLatencyWaitableObjects++] = frameBuffer.m_frameLatencyWaitableObject;
+					}
+
+					hr = frameBuffer.present(syncInterval, presentFlags);
 				}
 
 				if (SUCCEEDED(hr) )
@@ -2474,6 +2485,15 @@ namespace bgfx { namespace d3d11
 						m_deviceCtx->Flush();
 					}
 				}
+
+#if BX_PLATFORM_WINDOWS
+				for (uint32_t ii = 0; ii < numFrameLatencyWaitableObjects; ++ii)
+				{
+					WaitForSingleObjectEx( (HANDLE)frameLatencyWaitableObject[ii], 1000, TRUE);
+				}
+#else
+				BX_UNUSED(frameLatencyWaitableObject, numFrameLatencyWaitableObjects);
+#endif // BX_PLATFORM_WINDOWS
 
 				handleDeviceLost(hr);
 			}
@@ -6033,6 +6053,7 @@ namespace bgfx { namespace d3d11
 		if (scd.waitable)
 		{
 			m_frameLatencyWaitableObject = m_swapChain->GetFrameLatencyWaitableObject();
+			WaitForSingleObjectEx( (HANDLE)m_frameLatencyWaitableObject, 1000, TRUE);
 		}
 
 		DX_CHECK(s_renderD3D11->m_dxgi.m_factory->MakeWindowAssociation(
@@ -6594,13 +6615,6 @@ namespace bgfx { namespace d3d11
 		HRESULT hr = m_swapChain->Present(_syncInterval, _flags);
 		hr = !isLost(hr) ? S_OK : hr;
 		m_needPresent = false;
-
-#if BX_PLATFORM_WINDOWS
-		if (NULL != m_frameLatencyWaitableObject)
-		{
-			WaitForSingleObjectEx( (HANDLE)m_frameLatencyWaitableObject, 1000, TRUE);
-		}
-#endif // BX_PLATFORM_WINDOWS
 
 		return hr;
 	}
